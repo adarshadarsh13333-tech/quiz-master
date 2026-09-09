@@ -12,10 +12,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
+        id: java
         uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Set Java 17 environment
+        run: |
+          echo "JAVA_HOME=${{ steps.java.outputs.path }}" >> $GITHUB_ENV
+          echo "${{ steps.java.outputs.path }}/bin" >> $GITHUB_PATH
+          java -version
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -27,12 +34,29 @@ jobs:
       - name: Install Buildozer dependencies
         run: |
           sudo apt update
-          sudo apt install -y git zip unzip python3-pip python3-venv autoconf automake libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev cmake libffi-dev libssl-dev
+          sudo apt install -y \
+            git zip unzip python3-pip python3-venv \
+            autoconf automake libtool pkg-config \
+            zlib1g-dev libncurses5-dev libncursesw5-dev \
+            cmake libffi-dev libssl-dev
+
           python3 -m pip install --user --upgrade buildozer cython
+
+      - name: Configure Buildozer
+        run: |
+          sed -i '/^android.sdk_path/d' buildozer.spec
+          sed -i '/^android.skip_update/d' buildozer.spec
+          sed -i '/^android.accept_sdk_license/d' buildozer.spec
+          sed -i '/^orientation =/a android.sdk_path = /usr/local/lib/android/sdk' buildozer.spec
+          sed -i '/^android.sdk_path/a android.skip_update = True' buildozer.spec
+          sed -i '/^android.skip_update/a android.accept_sdk_license = True' buildozer.spec
 
       - name: Build APK
         run: |
           export PATH="$HOME/.local/bin:$PATH"
+          export JAVA_HOME="${{ steps.java.outputs.path }}"
+          export ANDROID_HOME="/usr/local/lib/android/sdk"
+          export ANDROID_SDK_ROOT="/usr/local/lib/android/sdk"
           buildozer android debug
 
       - name: Upload APK
